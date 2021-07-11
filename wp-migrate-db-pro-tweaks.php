@@ -1,10 +1,10 @@
 <?php
 /*
 Plugin Name: WP Migrate DB Pro Tweaks
-Plugin URI: http://github.com/deliciousbrains/wp-migrate-db-pro-tweaks
+Plugin URI: http://github.com/thefarmminneapolis/wp-migrate-db-pro-tweaks
 Description: Examples of using WP Migrate DB Pro's filters
 Author: Delicious Brains
-Version: 0.2
+Version: 1.0.0
 Author URI: http://deliciousbrains.com
 */
 
@@ -34,7 +34,7 @@ class WP_Migrate_DB_Pro_Tweaks {
 		//add_filter( 'wpmdb_preserved_options', array( $this, 'preserved_options' ) );
 		//add_filter( 'wpmdb_hide_safe_mode_warning', array( $this, 'hide_safe_mode_warning' ) );
 		//add_filter( 'wpmdb_create_table_query', array( $this, 'create_table_query' ), 10, 2 );
-		//add_filter( 'wpmdb_rows_where', array( $this, 'rows_where' ), 10, 2 );
+		add_filter( 'wpmdb_rows_where', array( $this, 'rows_where' ), 10, 2 );
 		//add_filter( 'wpmdb_rows_per_segment', array( $this, 'rows_per_segment' ) );
 		//add_filter( 'wpmdb_alter_table_name', array( $this, 'alter_table_name' ) );
 		//add_filter( 'wpmdb_prepare_remote_connection_timeout', array( $this, 'prepare_remote_connection_timeout' ) );
@@ -184,11 +184,26 @@ class WP_Migrate_DB_Pro_Tweaks {
 	 */
 	function rows_where( $where, $table ) {
 		global $wpdb;
-		if ( $wpdb->prefix . 'users' != $table ) {
-			return $where;
-		}
-		$where .= ( empty( $where ) ? 'WHERE ' : ' AND ' );
-		$where .= "`user_login` NOT LIKE 'admin'";
+		if ( $wpdb->prefix . 'users' == $table ) {
+
+            // Exclude the super admin user
+            $where .= ( empty( $where ) ? 'WHERE ' : ' AND ' );
+            $where .= " `user_login` NOT LIKE 'thefarmminneapolis' ";
+
+            // Exclude the site admin user for The Bean
+            $where .= " AND `user_login` NOT LIKE 'thebean' ";
+
+            // Exclude the site admin user for The Pickle
+            $where .= " AND `user_login` NOT LIKE 'thepickle' ";
+        }
+
+        // Do not migrate WooCommerce Paypal settings in wp-options tables
+		if ( preg_match( '/^' . $wpdb->prefix . '(\d+_)?options$/i', $table ) ) {
+
+            // Exclude PayPal for Woocommerce settings row
+            $where .= ( empty( $where ) ? 'WHERE ' : ' AND ' );
+            $where .= " `option_name` NOT LIKE 'woocommerce-ppcp-settings' ";
+        }
 
 		return $where;
 	}
