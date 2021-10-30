@@ -1,6 +1,6 @@
 {
   "name": "wp-migrate-db-pro-tweaks",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0",
   "description": "WP Migration Tweaks for The Farm",
   "bugs": {
     "url": "https://github.com/thefarmminneapolis/thefarm/issues"
