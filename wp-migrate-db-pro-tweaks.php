@@ -4,7 +4,7 @@ Plugin Name: WP Migrate DB Pro Tweaks
 Plugin URI: http://github.com/thefarmminneapolis/wp-migrate-db-pro-tweaks
 Description: Examples of using WP Migrate DB Pro's filters
 Author: Delicious Brains
-Version: 1.0.0-rc.1
+Version: 1.0.0-rc.2
 Author URI: http://deliciousbrains.com
 */
 
