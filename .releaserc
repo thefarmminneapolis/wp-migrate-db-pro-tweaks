@@ -1,0 +1,28 @@
+{
+    "branches": [
+        "master",
+        {name: "development", channel: "pre/rc", prerelease: "rc"},
+        {name: "beta", prerelease: true},
+        {name: "alpha", prerelease: true}
+    ],
+    "plugins": [
+        "@semantic-release/commit-analyzer",
+        "@semantic-release/release-notes-generator",
+        ["@semantic-release/changelog", {
+            "changelogFile": "CHANGELOG.md"
+        }],
+        ["@semantic-release/exec", {
+          "prepareCmd": "sed -ie \"s/^Version:[ ]*[0-9.rc-]*/Version: ${nextRelease.version}/g\" wp-migrate-db-pro-tweaks.php && sed -ie 's/\x22version\x22:[ ]*\x22[0-9.rc-]*\x22/\x22version\x22: \x22${nextRelease.version}\x22/g' package.json && npm install"
+        }],
+        ["@semantic-release/git", {
+            "assets": ["package.json", "package-lock.json", "wp-migrate-db-pro-tweaks.php", "CHANGELOG.md"],
+        }],
+        ["@semantic-release/github", {
+            "assets": "!node_modules"
+        }],
+        ["@saithodev/semantic-release-backmerge", {
+            "branchName": "development",
+        }]
+    ],
+    "preset": "angular"
+}

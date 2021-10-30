@@ -1,0 +1,13 @@
+{
+  "name": "thefarmminneapolis/wp-migrate-db-pro-tweaks",
+  "description": "WP Migrate DB Pro Tweaks",
+  "keywords": ["wordpress", "plugin", "database", "migration", "media"],
+  "homepage": "https://github.com/thefarmminneapolis/wp-migrate-db-pro-tweaks",
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "type": "wordpress-plugin",
+  "require": {
+      "php": ">=7.3",
+      "composer/installers": "^1.0"
+  }
+}

@@ -1,10 +1,10 @@
 <?php
 /*
 Plugin Name: WP Migrate DB Pro Tweaks
-Plugin URI: http://github.com/deliciousbrains/wp-migrate-db-pro-tweaks
+Plugin URI: http://github.com/thefarmminneapolis/wp-migrate-db-pro-tweaks
 Description: Examples of using WP Migrate DB Pro's filters
 Author: Delicious Brains
-Version: 0.2
+Version: 1.0.0-rc.2
 Author URI: http://deliciousbrains.com
 */
 
@@ -24,17 +24,18 @@ class WP_Migrate_DB_Pro_Tweaks {
 	function __construct() {
 		// Uncomment the following lines to initiate an action / filter
 
-		//add_action( 'wpmdb_migration_complete', array( $this, 'migration_complete' ), 10, 2 );
+		add_action( 'wpmdb_migration_complete', array( $this, 'migration_complete' ), 10, 2 );
 		//add_filter( 'wpmdb_bottleneck', array( $this, 'bottleneck' ) );
 		//add_filter( 'wpmdb_sensible_pull_limit', array( $this, 'sensible_pull_limit' ) );
 		//add_filter( 'wpmdb_temporary_prefix', array( $this, 'temporary_prefix' ) );
 		//add_filter( 'wpmdb_upload_info', array( $this, 'upload_info' ) );
 		//add_filter( 'wpmdb_upload_dir_name', array( $this, 'upload_dir_name' ) );
 		//add_filter( 'wpmdb_default_remote_post_timeout', array( $this, 'default_remote_post_timeout' ) );
-		//add_filter( 'wpmdb_preserved_options', array( $this, 'preserved_options' ) );
+		add_filter( 'wpmdb_preserved_options', array( $this, 'preserved_options' ) );
 		//add_filter( 'wpmdb_hide_safe_mode_warning', array( $this, 'hide_safe_mode_warning' ) );
 		//add_filter( 'wpmdb_create_table_query', array( $this, 'create_table_query' ), 10, 2 );
-		//add_filter( 'wpmdb_rows_where', array( $this, 'rows_where' ), 10, 2 );
+		add_filter( 'wpmdb_rows_where', array( $this, 'rows_where' ), 10, 2 );
+		//add_filter( 'wpmdb_rows_sql', array( $this, 'rows_sql' ), 10, 2 );
 		//add_filter( 'wpmdb_rows_per_segment', array( $this, 'rows_per_segment' ) );
 		//add_filter( 'wpmdb_alter_table_name', array( $this, 'alter_table_name' ) );
 		//add_filter( 'wpmdb_prepare_remote_connection_timeout', array( $this, 'prepare_remote_connection_timeout' ) );
@@ -54,6 +55,9 @@ class WP_Migrate_DB_Pro_Tweaks {
 	 */
 	function preserved_options( $options ) {
 		$options[] = 'blogname';
+
+        // Preserve WooCommerce Paypal settings
+        $options[] = 'woocommerce-ppcp-settings';
 
 		return $options;
 	}
@@ -97,21 +101,49 @@ class WP_Migrate_DB_Pro_Tweaks {
 	 * In this example, we send an email to the DBA once a migration has completed.
 	 */
 	function migration_complete( $migration_type, $connection_url ) {
-		$email   = 'dba@yourwebsite.com';
-		$subject = sprintf( '%s migration complete!', ucfirst( $migration_type ) );
 
-		if ( 'push' == $migration_type ) {
-			$migration_from = home_url();
-			$migration_to   = $connection_url;
-		} else {
-			$migration_from = $connection_url;
-			$migration_to   = home_url();
-		}
+        // Log it
+        do_action( 'wonolog.log', [
+            'message' => '[wp-migrate-db-pro-tweaks][migration_complete] Completed ' . $migration_type,
+            'channel' => 'INFO',
+            'context' => [
+                "migration_type" => $migration_type,
+                "connection_url" => $connection_url,
+            ],
+        ] );
 
-		$body = sprintf( 'Hi there, we just %sed the DB from %s to %s, this occured at %s.',
-			$migration_type, $migration_from, $migration_to, current_time( 'mysql' ) );
+        // Ensure we have a password
+        if ( !$_ENV['THE_FARM_DEFAULT_PASSWORD'] ?? false) {
 
-		wp_mail( $email, $subject, $body );
+            // Log it
+            do_action( 'wonolog.log', [
+                'message' => '[wp-migrate-db-pro-tweaks][migration_complete] Cannot change passwords, THE_FARM_DEFAULT_PASSWORD is not set',
+                'channel' => 'WARNING',
+            ] );
+
+        } else {
+
+            // Iterate users
+            foreach ( get_users() as $user  ) {
+
+                // Change password for administrators
+                if ( !$user->caps['administrator'] ?? false ) {
+                    continue;
+                }
+
+                // Change the password to the default
+                wp_set_password( $_ENV['THE_FARM_DEFAULT_PASSWORD'], $user->ID );
+
+                // Log it
+                do_action( 'wonolog.log', [
+                    'message' => '[wp-migrate-db-pro-tweaks][migration_complete] Change password for ' . $user->user_login,
+                    'channel' => 'INFO',
+                    'context' => [
+                        "user" => $user,
+                    ],
+                ] );
+            }
+        }
 	}
 
 	/**
@@ -183,14 +215,101 @@ class WP_Migrate_DB_Pro_Tweaks {
 	 * The example below excludes the admin user from being migrated to the remote site.
 	 */
 	function rows_where( $where, $table ) {
+
 		global $wpdb;
-		if ( $wpdb->prefix . 'users' != $table ) {
-			return $where;
-		}
-		$where .= ( empty( $where ) ? 'WHERE ' : ' AND ' );
-		$where .= "`user_login` NOT LIKE 'admin'";
+		if ( $wpdb->prefix . 'users' == $table ) {
+
+            // Log it
+            do_action( 'wonolog.log', [
+                'message' => '[wp-migrate-db-pro-tweaks][rows_where] BEGIN: Wordpress Users',
+                'channel' => 'DEBUG',
+                'context' => [
+                    "where" => $where,
+                    "table" => $table,
+                ],
+            ] );
+
+            // Check for WHERE and add if necessary
+            $where .= ( empty( $where ) ? 'WHERE ' : ' AND ' );
+
+            // Exclude the super admin users
+            $where .= " `user_login` NOT LIKE 'thefarmminneapolis' ";
+            $where .= " AND `user_login` NOT LIKE 'thefarmadmin' ";
+
+            // Exclude the site admin user for The Bean
+            $where .= " AND `user_login` NOT LIKE 'thebean' ";
+
+            // Exclude the site admin user for The Pickle
+            $where .= " AND `user_login` NOT LIKE 'thepickle' ";
+
+            // Exclude the site admin user for The Hops
+            $where .= " AND `user_login` NOT LIKE 'thehops' ";
+
+            // Log it
+            do_action( 'wonolog.log', [
+                'message' => '[wp-migrate-db-pro-tweaks][rows_where] END: Wordpress Users',
+                'channel' => 'DEBUG',
+                'context' => [
+                    "where" => $where,
+                    "table" => $table,
+                ],
+            ] );
+        }
+
+        // Do not migrate WooCommerce Paypal settings in wp-options tables
+		if ( preg_match( '/^' . $wpdb->prefix . '(\d+_)?options$/i', $table ) ) {
+
+            // Log it
+            do_action( 'wonolog.log', [
+                'message' => '[wp-migrate-db-pro-tweaks][rows_where] BEGIN: WooCommerce Paypal settings',
+                'channel' => 'DEBUG',
+                'context' => [
+                    "where" => $where,
+                    "table" => $table,
+                ],
+            ] );
+
+            // Exclude PayPal for Woocommerce settings row
+            $where .= ( empty( $where ) ? 'WHERE ' : ' AND ' );
+            $where .= " `option_name` NOT LIKE 'woocommerce-ppcp-settings' ";
+
+            // Log it
+            do_action( 'wonolog.log', [
+                'message' => '[wp-migrate-db-pro-tweaks][rows_where] END: WooCommerce Paypal settings',
+                'channel' => 'DEBUG',
+                'context' => [
+                    "where" => $where,
+                    "table" => $table,
+                ],
+            ] );
+        }
 
 		return $where;
+	}
+
+	/**
+	 * Alter the SQL statement when selecting data to migrate
+	 * Using this filter you can exclude certain data from the migration.
+	 */
+	function rows_sql( $sql, $table ) {
+
+		global $wpdb;
+
+        // Do not migrate WooCommerce Paypal settings in wp-options tables
+		if ( preg_match( '/^' . $wpdb->prefix . '(\d+_)?options$/i', $table ) ) {
+
+            // Log it
+            do_action( 'wonolog.log', [
+                'message' => '[wp-migrate-db-pro-tweaks][rows_sql] BEGIN: WooCommerce Paypal transforms',
+                'channel' => 'DEBUG',
+                'context' => [
+                    "sql" => $sql,
+                    "table" => $table,
+                ],
+            ] );
+		}
+
+		return $sql;
 	}
 
 	/**
